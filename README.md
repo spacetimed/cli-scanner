@@ -1,26 +1,31 @@
 # CLI Scanner
 
-An to scan files from command line using the VirusTotal API.
+A command-line program to scan files in your terminal using the VirusTotal API.
 
-Users can registered through a username/password, and be able to view their scan history through a frontend page which shows scan data.
-
-New scans will check if the hash exists in the database prior to calling VirusTotal API.
+Uses a backend REST API to browse scan history and register devices.
+* If you input an 'API Key' and 'API Host' in the configuration file, all scans will send your device name and scan result the given host.
+* You can then browse the scan history of all your devices through this online frontend.
 
 ---
+
+## MySQL Info:
+Password: not4prod
 
 ## To research:
 * Laravel
 
 ## Plan
 
-**1. Frontend: Laravel - PHP, MySQL, [?]**
+**1. Frontend: Laravel - PHP, MySQL, Nginx**
 * Basic MySQL table, user authentication to view records
-* API Endpoints (/register, /new-scan, ...)
+* API Endpoints (/create_key, /scan/{device}/{result}/, ...)
 * Basic design
 
 **2. Backend: Python - API Communication**
 * Create venv
 * Parse system args, handle everything, decorators, ...
+
+**3. Dockerize at end?**
 
 ---
 
