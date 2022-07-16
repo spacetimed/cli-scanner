@@ -1,3 +1,4 @@
+from optparse import Option
 import requests
 import json
 import os
@@ -18,11 +19,23 @@ class Logger:
     def __init__(self) -> None:
         return None
     
-    def __call__(self, msg: str, tag: Optional[str] = None) -> None:
+    def __call__(self, msg: str, tag: Optional[str] = None, end: Optional[str] = None) -> None:
         print('  ', end='')
-        if(tag == 'error'):
-            print(Back.RED, Fore.WHITE, 'error  ', end=Style.RESET_ALL)
-        print(' ', msg)
+
+        tags: Dict[str, str] = {
+            'error' : Back.RED,
+            'info' : Back.BLUE,
+            'question' : Back.MAGENTA,
+        }
+
+        if(tag in tags):
+            print(tags[tag], Fore.WHITE, tag, ' ', end=Style.RESET_ALL)
+
+        if end is None:
+            print(' ', msg)
+        else:
+            print(' ', msg, end=end)
+
         return
         
 class APIRequest:
@@ -39,8 +52,9 @@ class APIRequest:
         self, 
         route: str, 
         method: str, 
-        add_headers: Dict[str, str] = None
-    ) -> Optional[requests.models.Response]:
+        add_headers: Dict[str, str] = None,
+        files: Optional[Dict[str, any]] = None
+    ) -> requests.models.Response:
 
         url: str = f"{self.config['endpoint']}/{route}"
         headers: Dict[str, str] = self.headers
@@ -49,18 +63,16 @@ class APIRequest:
             headers.update(add_headers)
 
         if(method == 'post'):
-            self.Log('Invalid request', tag='error')
-            return None
+            #self.Log('Invalid request', tag='error')
+            if files is not None:
+                response = requests.post(url, files=files, headers=headers)
+
 
         elif(method == 'get'):
             response = requests.get(url, headers=headers)
 
-        if not response.ok:
-            self.Log('Invalid API response', tag='error')
-            print('error1', response.text)
-            return None 
-        
-        return json.loads(response.text)
+        return response
+
 
 
 class Scanner:
@@ -91,7 +103,11 @@ class Scanner:
         elif(which == 'hash'):
             hash = __target
 
-        self.scan_file_by_hash(hash)
+        self.scan_file_by_hash(hash, path)
+
+    def RaiseError(self,  error_message: Optional[str], flag: Optional[int] = False) -> bool:
+        self.Log(error_message, tag='error')
+        return flag
 
     def get_file_hash(self, path: str):
         with open(path, "rb") as f:
@@ -127,8 +143,9 @@ class Scanner:
         first_submission_date: int = attr['first_submission_date']
 
         last_analysis_stats: Dict[str, int] = attr['last_analysis_stats']
+        sha256: str = attr['sha256']
 
-        format_names: str = ', '.join(names)
+        format_names: str = (', '.join(names) + ', ...') if (len(names) > 0) else ('...')
         
         print('\n')
         print(Back.WHITE, Fore.BLACK, 'SCAN COMPLETE', Style.RESET_ALL)
@@ -136,7 +153,8 @@ class Scanner:
         print(Fore.BLUE, f'  https://www.virustotal.com/gui/file/{scan_id}', Style.RESET_ALL)
         print()
         self.row('type', type)
-        self.row('names', f'{format_names}, ...')
+        self.row('names', f'{format_names}')
+        self.row('sha256', sha256)
         self.row('submissions', times_submitted)
         self.row('votes', f"{total_votes['harmless']} 👍  / {total_votes['malicious']} 👎")
         self.row('detections', f"{last_analysis_stats['malicious']} / {last_analysis_stats['undetected'] + last_analysis_stats['malicious']} {'❌' if (last_analysis_stats['malicious'] > 0) else '✅'}", flag=(last_analysis_stats['malicious'] > 0))
@@ -146,15 +164,55 @@ class Scanner:
 
         return
 
+    def force_upload_and_scan(self, path: str) -> None:
 
-    def scan_file_by_hash(self, hash: str) -> None:
+        # Assume file already exists (checked in __init__)
+
+        file_handle = open(path, 'rb')
+        response: requests.models.Response = self.APIRequest(f'files', 'post', files={
+            'file' : file_handle
+        })
+
+        if not response.ok:
+            return self.RaiseError('Invalid API response')
+
+        response = json.loads(response.text)
+
+        if 'data' in response and 'id' in response['data']:
+            id = response['data']['id']
+            response: requests.models.Response = self.APIRequest(f'analyses/{id}', 'get') 
+            response = json.loads(response.text)
+            hash = response['meta']['file_info']['sha256']
+            self.scan_file_by_hash(hash)
+
+        return
+
+    def scan_file_by_hash(self, hash: str, file_path: Optional[str] = None) -> None:
         
-        # supported hashes: SHA-256, SHA-1, MD5
-        response: Optional[requests.models.Response] = self.APIRequest(f'files/{hash}', 'get') 
+        response: requests.models.Response = self.APIRequest(f'files/{hash}', 'get') 
 
-        if not response:
-            self.Log('An error occurred [2]', tag='error')
-            return
+        if not response.ok:
+            if len(response.text) > 0:
+                response_object: Dict[str, Dict[str, str]] = {}
 
+                try:
+                    response_object = json.loads(response.text)
+                except ValueError as e:
+                    return self.RaiseError('Could not unpackage response. Corrupted?')
+
+                if ('error' in response_object) and (response_object['error']['code'] == 'NotFoundError'):
+
+                    self.Log(f'A hash could not be found in the VirusTotal database for "{file_path}"', tag='info')
+                    self.Log(f'Would you like to upload the file to VirusTotal? (Y/n): ', tag='question', end='')
+                    user_res: str = input()
+                    if(user_res.upper() == 'Y'):
+                        return self.force_upload_and_scan(file_path)
+                    
+                    return self.RaiseError('Unable to scan designated file.', flag='upload')
+            
+            return self.RaiseError('Invalid API response')
+        
+        response = json.loads(response.text)
         self.display_result(response)
+
         return
