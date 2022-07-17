@@ -1,4 +1,4 @@
-from optparse import Option
+import time
 import requests
 import json
 import os
@@ -14,6 +14,17 @@ from typing import Union
 from typing import Any 
 from typing import Type
 from typing import Dict
+
+
+class Spinner:
+    def __init__(self, message: str, total_time: int, speed: float) -> None:
+        calc_interval: float = total_time / speed 
+        frames: List[str] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        for i in range(1, int(calc_interval)):
+            print(' ', message, frames[i % len(frames)], ' ', end='\r')
+            time.sleep(speed)
+        return None
+
 
 class Logger:
     def __init__(self) -> None:
@@ -63,16 +74,12 @@ class APIRequest:
             headers.update(add_headers)
 
         if(method == 'post'):
-            #self.Log('Invalid request', tag='error')
             if files is not None:
-                response = requests.post(url, files=files, headers=headers)
-
-
+                response: requests.models.Response = requests.post(url, files=files, headers=headers)
         elif(method == 'get'):
-            response = requests.get(url, headers=headers)
+            response: requests.models.Response = requests.get(url, headers=headers)
 
         return response
-
 
 
 class Scanner:
@@ -94,10 +101,13 @@ class Scanner:
         
         if(which == 'file'):
             path = __target
+
             if not os.path.exists(path):
                 return self.Log(f'File does not exist ({path})', tag='error')
+
             if os.path.getsize(path) > self.config['size_limit']:
                 return self.Log(f'File size is too large', tag='error')
+
             hash = self.get_file_hash(path)
 
         elif(which == 'hash'):
@@ -122,11 +132,9 @@ class Scanner:
             data = Fore.RED + data
         print(Fore.GREEN, title.rjust(padding), Style.RESET_ALL, data, Style.RESET_ALL)
 
-
     def format_timestamp(self, timestamp: int) -> str:
         format: datetime = datetime.fromtimestamp(timestamp)
         return(f"{format.strftime('%c')}")
-
 
     def display_result(self, response: Dict[str, str]) -> None:
 
@@ -166,8 +174,6 @@ class Scanner:
 
     def force_upload_and_scan(self, path: str) -> None:
 
-        # Assume file already exists (checked in __init__)
-
         file_handle = open(path, 'rb')
         response: requests.models.Response = self.APIRequest(f'files', 'post', files={
             'file' : file_handle
@@ -176,14 +182,43 @@ class Scanner:
         if not response.ok:
             return self.RaiseError('Invalid API response')
 
-        response = json.loads(response.text)
+        response = response.json()
 
-        if 'data' in response and 'id' in response['data']:
-            id = response['data']['id']
+        if 'data' not in response:
+            return self.RaiseError('Invalid API response')
+
+        id = response['data']['id']
+        response: requests.models.Response = self.APIRequest(f'analyses/{id}', 'get') 
+        
+        if not response.ok:
+            return self.RaiseError('Invalid API response')
+        
+        response = response.json()
+
+        if 'data' not in response:
+            return self.RaiseError('Invalid API response')
+
+        status = response['data']['attributes']['status']
+
+        print()
+
+        
+        wait = self.config['delay_between_status_checks']
+        wait = 20
+        print()
+
+        while status == 'queued':
+            Spinner('Waiting for scan to complete', wait, 0.1)
+            time.sleep(wait)
+
             response: requests.models.Response = self.APIRequest(f'analyses/{id}', 'get') 
             response = json.loads(response.text)
-            hash = response['meta']['file_info']['sha256']
-            self.scan_file_by_hash(hash)
+
+            status = response['data']['attributes']['status']
+            if(status == 'completed'):
+                hash = response['meta']['file_info']['sha256']
+                self.scan_file_by_hash(hash)
+                break
 
         return
 
@@ -204,7 +239,8 @@ class Scanner:
 
                     self.Log(f'A hash could not be found in the VirusTotal database for "{file_path}"', tag='info')
                     self.Log(f'Would you like to upload the file to VirusTotal? (Y/n): ', tag='question', end='')
-                    user_res: str = input()
+                    # user_res: str = input()
+                    user_res: str = 'Y'
                     if(user_res.upper() == 'Y'):
                         return self.force_upload_and_scan(file_path)
                     
