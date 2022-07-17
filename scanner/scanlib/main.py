@@ -1,6 +1,5 @@
 import time
 import requests
-import json
 import os
 import hashlib
 
@@ -15,8 +14,12 @@ from typing import Any
 from typing import Type
 from typing import Dict
 
+class Wait:
 
-class Spinner:
+    '''
+    Module to wait a set amount of 'total_time' while displaying an animated spinner.
+    '''
+
     def __init__(self, message: str, total_time: int, speed: float) -> None:
         calc_interval: float = total_time / speed 
         frames: List[str] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -27,6 +30,11 @@ class Spinner:
 
 
 class Logger:
+    
+    '''
+    Basic logging class with colored highlighting for specific messages (errors, info, questions).
+    '''
+
     def __init__(self) -> None:
         return None
     
@@ -50,6 +58,11 @@ class Logger:
         return
         
 class APIRequest:
+
+    '''
+    Basic class wrapper for the 'requests' module.
+    '''    
+
     def __init__(self, config: Dict[str, str]) -> None:
         self.Log: Type[Logger] = Logger()
         self.config: Dict[str, str] = config 
@@ -83,6 +96,11 @@ class APIRequest:
 
 
 class Scanner:
+
+    '''
+    Main module to scan files from command line using the VirusTotal API.
+    '''
+
     def __init__(self, __target: str, which: str) -> None:
 
         self.master_dir: str = os.path.dirname(os.path.realpath(__file__))
@@ -203,16 +221,16 @@ class Scanner:
         print()
 
         
-        wait = self.config['delay_between_status_checks']
-        wait = 20
+        wait_time = self.config['delay_between_status_checks']
+        wait_message = 'Waiting for scan to complete'
         print()
 
         while status == 'queued':
-            Spinner('Waiting for scan to complete', wait, 0.1)
-            time.sleep(wait)
+            Wait(wait_message, wait_time, 0.1)
+            wait_message += '.'
 
             response: requests.models.Response = self.APIRequest(f'analyses/{id}', 'get') 
-            response = json.loads(response.text)
+            response = response.json()
 
             status = response['data']['attributes']['status']
             if(status == 'completed'):
@@ -231,7 +249,7 @@ class Scanner:
                 response_object: Dict[str, Dict[str, str]] = {}
 
                 try:
-                    response_object = json.loads(response.text)
+                    response_object = response.json()
                 except ValueError as e:
                     return self.RaiseError('Could not unpackage response. Corrupted?')
 
@@ -239,8 +257,8 @@ class Scanner:
 
                     self.Log(f'A hash could not be found in the VirusTotal database for "{file_path}"', tag='info')
                     self.Log(f'Would you like to upload the file to VirusTotal? (Y/n): ', tag='question', end='')
-                    # user_res: str = input()
-                    user_res: str = 'Y'
+                    user_res: str = input()
+                    # debug user_res: str = 'Y'
                     if(user_res.upper() == 'Y'):
                         return self.force_upload_and_scan(file_path)
                     
@@ -248,7 +266,7 @@ class Scanner:
             
             return self.RaiseError('Invalid API response')
         
-        response = json.loads(response.text)
+        response = response.json()
         self.display_result(response)
 
         return
