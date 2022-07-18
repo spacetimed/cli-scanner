@@ -1,4 +1,5 @@
 .venv/
 .git
 API_KEY
-
+API_KEY.py
+secret.py

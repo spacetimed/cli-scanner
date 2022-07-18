@@ -3,7 +3,8 @@ import requests
 import os
 import hashlib
 
-from config import options as __options__
+from scanner.config import options as __options__
+from scanner.secret import API_KEY as __APIKEY__
 from colorama import Fore, Back, Style
 from datetime import datetime
 
@@ -104,9 +105,10 @@ class Scanner:
     def __init__(self, __target: str, which: str) -> None:
 
         self.master_dir: str = os.path.dirname(os.path.realpath(__file__))
+        self.api_key = __APIKEY__
 
-        with open(f'{self.master_dir}/API_KEY', 'r') as f:
-            self.api_key = f.readline() 
+        # with open(f'{self.master_dir}/API_KEY', 'r') as f:
+        #     self.api_key = f.readline() 
 
         self.config: Dict[str, str] = __options__ 
         self.config['api_key'] = self.api_key
@@ -217,12 +219,10 @@ class Scanner:
             return self.RaiseError('Invalid API response')
 
         status = response['data']['attributes']['status']
-
-        print()
-
         
         wait_time = self.config['delay_between_status_checks']
         wait_message = 'Waiting for scan to complete'
+
         print()
 
         while status == 'queued':

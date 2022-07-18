@@ -1,19 +1,23 @@
 import argparse
 import os
 from sys import exit
-from scanlib.main import Scanner
+from scanner.main import Scanner
 
-parser = argparse.ArgumentParser()
-group = parser.add_mutually_exclusive_group(required=True)
+def main():
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
 
-group.add_argument('-f', '--file', type=os.path.abspath, help='relative file name')
-group.add_argument('-H', '--hash', type=str, help='hash')
-args = parser.parse_args()
+    group.add_argument('-f', '--file', type=os.path.abspath, help='relative file name')
+    group.add_argument('-H', '--hash', type=str, help='hash')
+    args = parser.parse_args()
 
-if args.file is not None:
-    Scanner(args.file, which='file')
+    if args.file is not None:
+        Scanner(args.file, which='file')
 
-elif args.hash is not None:
-    Scanner(args.hash, which='hash')
+    elif args.hash is not None:
+        Scanner(args.hash, which='hash')
 
-exit()
+    exit()
+
+if __name__ == '__main__':
+    main()
