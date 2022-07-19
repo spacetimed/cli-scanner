@@ -1,47 +1,68 @@
-# CLI Scanner
+# Scanner
 
-A command-line program to scan files in your terminal using the VirusTotal API.
+Scanner, or cli-scanner, is a command-line program to analyze files directly from your terminal using the VirusTotal API, displaying relative information such as thread detections, recent spottings, and associated file names.
 
-Uses a backend REST API to browse scan history and register devices.
-* If you input an 'API Key' and 'API Host' in the configuration file, all scans will send your device name and scan result the given host.
-* You can then browse the scan history of all your devices through this online frontend.
+## Demo 
 
----
+Scanning a file by file name:
 
-## MySQL Info:
-Password: not4prod
+![](previews/scan_file.png)
 
-## To research:
-* Laravel
+Scanning a file by hash: 
+![](previews/scan_hash.png)
 
-## Plan
+As an added privacy feature, if the file does not exist in the VirusTotal database, you will be notified prior to upload:
+![](previews/scan_new_file.png)
 
-**1. Frontend: Laravel - PHP, MySQL, Nginx**
-* Basic MySQL table, user authentication to view records
-* API Endpoints (/create_key, /scan/{device}/{result}/, ...)
-* Basic design
 
-**2. Backend: Python - API Communication**
-* Create venv
-* Parse system args, handle everything, decorators, ...
+## Quick Setup
 
-**3. Dockerize at end?**
+Building Scanner is easy, and requires only 3 steps:
 
----
+1. Clone the repository:
 
-## Architecture
+```
+$ git clone https://github.com/spacetimed/cli-scanner
+```
 
-**1. Backend 'CLI Scanner'**
-* Python 3.8
-* API Communication
+2. Create a new file called `scanner/secret.py`, and add your VirusTotal API key as a variable named `API_KEY`. You must create a VirusTotal account to create an API key.
 
-**2. Frontend/API 'View Scan History and User Relationships':**
-* [?]
-* MySQL 
-* PHP - Laravel?
-* HTML/CSS
+```
+$ touch cli-scanner/scanner/secret.py
 
----
+$ echo "API_KEY='644bc...afcd'" > cli-scanner/scanner/secret.py
 
-All technologies used: Python, PHP, MySQL, HTML, CSS, Laravel, Nginx, Docker [?]
+$ cat cli-scanner/scanner/secret.py
+API_KEY='644bc...afcd'
 
+```
+
+3. Build your Python module:
+
+```
+$ pip install .
+```
+
+Scanner is now ready to be used with the `scanner` command in your command line.
+
+
+## Usage
+
+Type the following command in your terminal to view the basic usage of scanner:
+
+```
+$ scanner --help
+usage: scanner [-h] (-f FILE | -H HASH)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f FILE, --file FILE  relative file name
+  -H HASH, --hash HASH  hash
+```
+
+As shown above, scanner requires one of two arguments:
+
+1. `-f` or `--file` : Scan a file by relative path name.
+    * If the file has not been previously scanned in the VirusTotal database, it will be optionally uploaded at the user's discretion.
+2. `-H` or `--hash` : Scan a hash (sha256 or md5).
+    * If the hash has not been previously scanned in the VirusTotal database, cli-scanner will be unable to fetch scan information.
